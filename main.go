@@ -39,7 +39,7 @@ type metadata struct {
 	JavaVersion selectType
 	BootVersion selectType
 	Packaging   selectType
-	ProjectType selectType `json:"type"`
+	ProjectType projectType `json:"type"`
 
 	GroupId     struct{ Default string }
 	ArtifactId  struct{ Default string }
@@ -55,6 +55,15 @@ type selectType struct {
 type value struct {
 	Id   string
 	Name string
+}
+
+type projectType struct {
+	Default string
+	Values  []projectValue
+}
+type projectValue struct {
+	value
+	Tags struct{ Format string }
 }
 
 func getMetaData(client *http.Client) (*metadata, error) {
@@ -78,6 +87,16 @@ func getOpts(values []value) []huh.Option[string] {
 	var opts []huh.Option[string]
 	for _, lv := range values {
 		opts = append(opts, huh.NewOption(lv.Name, lv.Id))
+	}
+	return opts
+}
+
+func getProjectOpts(values []projectValue) []huh.Option[string] {
+	var opts []huh.Option[string]
+	for _, lv := range values {
+		if lv.Tags.Format == "project" {
+			opts = append(opts, huh.NewOption(lv.Name, lv.Id))
+		}
 	}
 	return opts
 }
@@ -138,7 +157,7 @@ func generateForm(info *projectInfo, data *metadata) *huh.Form {
 
 			huh.NewSelect[string]().
 				Title("Type of the project").
-				Options(getOpts(data.ProjectType.Values)...).
+				Options(getProjectOpts(data.ProjectType.Values)...).
 				Value(&info.projectType),
 
 			huh.NewSelect[string]().
