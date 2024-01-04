@@ -109,37 +109,50 @@ func getProjectOpts(pt projectType) []huh.Option[string] {
 	return opts
 }
 
-func validationFunc(str string) error {
-	str = strings.TrimSpace(str)
-	if len(str) == 0 {
-		return errors.New("should not be empty")
-	}
-	if strings.Contains(str, " ") {
-		return errors.New("should not contain space")
-	}
-	return nil
-}
-
 func generateForm(info *projectInfo, data *metadata) *huh.Form {
+
+	validate := func(str string) error {
+		str = strings.TrimSpace(str)
+		if strings.Contains(str, " ") {
+			return errors.New("should not contain space")
+		}
+		return nil
+	}
+
+	nameValidate := func(str string) error {
+		if err := validate(str); err != nil {
+			return err
+		}
+		str = strings.TrimSpace(str)
+		if fs, err := os.Stat(str); !os.IsNotExist(err) {
+			d := "file"
+			if fs.IsDir() {
+				d = "directory"
+			}
+			return fmt.Errorf("a %s named '%s' already exists", d, str)
+		}
+		return nil
+	}
+
 	return huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
 				Title("Name of the project:").
 				Value(&info.name).
 				Placeholder(data.Name.Default).
-				Validate(validationFunc),
+				Validate(nameValidate),
 
 			huh.NewInput().
 				Title("Group Id:").
 				Value(&info.group).
 				Placeholder(data.GroupId.Default).
-				Validate(validationFunc),
+				Validate(validate),
 
 			huh.NewInput().
 				Title("Artifact Id:").
 				Value(&info.artifact).
 				Placeholder(data.ArtifactId.Default).
-				Validate(validationFunc),
+				Validate(validate),
 
 			huh.NewInput().
 				Title("Write a short description:").
@@ -310,6 +323,11 @@ func main() {
 	form := generateForm(info, data)
 	if err := form.Run(); err != nil {
 		die(err)
+	}
+
+	info.name = strings.TrimSpace(info.name)
+	if len(info.name) == 0 {
+		info.name = data.Name.Default
 	}
 
 	var genProjectErr error
