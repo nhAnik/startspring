@@ -83,19 +83,27 @@ func getMetaData(client *http.Client) (*metadata, error) {
 	return data, nil
 }
 
-func getOpts(values []value) []huh.Option[string] {
+func getOpts(st selectType) []huh.Option[string] {
 	var opts []huh.Option[string]
-	for _, lv := range values {
-		opts = append(opts, huh.NewOption(lv.Name, lv.Id))
+	for _, lv := range st.Values {
+		opt := huh.NewOption(lv.Name, lv.Id)
+		if lv.Id == st.Default {
+			opt = opt.Selected(true)
+		}
+		opts = append(opts, opt)
 	}
 	return opts
 }
 
-func getProjectOpts(values []projectValue) []huh.Option[string] {
+func getProjectOpts(pt projectType) []huh.Option[string] {
 	var opts []huh.Option[string]
-	for _, lv := range values {
+	for _, lv := range pt.Values {
 		if lv.Tags.Format == "project" {
-			opts = append(opts, huh.NewOption(lv.Name, lv.Id))
+			opt := huh.NewOption(lv.Name, lv.Id)
+			if lv.Id == pt.Default {
+				opt = opt.Selected(true)
+			}
+			opts = append(opts, opt)
 		}
 	}
 	return opts
@@ -142,27 +150,27 @@ func generateForm(info *projectInfo, data *metadata) *huh.Form {
 		huh.NewGroup(
 			huh.NewSelect[string]().
 				Title("Pick a language").
-				Options(getOpts(data.Language.Values)...).
+				Options(getOpts(data.Language)...).
 				Value(&info.language),
 
 			huh.NewSelect[string]().
 				Title("Java version").
-				Options(getOpts(data.JavaVersion.Values)...).
+				Options(getOpts(data.JavaVersion)...).
 				Value(&info.javaVersion),
 
 			huh.NewSelect[string]().
 				Title("Spring Boot version").
-				Options(getOpts(data.BootVersion.Values)...).
+				Options(getOpts(data.BootVersion)...).
 				Value(&info.bootVersion),
 
 			huh.NewSelect[string]().
 				Title("Type of the project").
-				Options(getProjectOpts(data.ProjectType.Values)...).
+				Options(getProjectOpts(data.ProjectType)...).
 				Value(&info.projectType),
 
 			huh.NewSelect[string]().
 				Title("Packaging type").
-				Options(getOpts(data.Packaging.Values)...).
+				Options(getOpts(data.Packaging)...).
 				Value(&info.packaging),
 		),
 
