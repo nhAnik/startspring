@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,8 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/huh"
-	"github.com/charmbracelet/huh/spinner"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // projectInfo bundles all the information of
@@ -81,142 +79,6 @@ func getMetaData(client *http.Client) (*metadata, error) {
 	dec := json.NewDecoder(resp.Body)
 	dec.Decode(data)
 	return data, nil
-}
-
-func getOpts(st selectType) []huh.Option[string] {
-	var opts []huh.Option[string]
-	for _, lv := range st.Values {
-		opt := huh.NewOption(lv.Name, lv.Id)
-		if lv.Id == st.Default {
-			opt = opt.Selected(true)
-		}
-		opts = append(opts, opt)
-	}
-	return opts
-}
-
-func getProjectOpts(pt projectType) []huh.Option[string] {
-	var opts []huh.Option[string]
-	for _, lv := range pt.Values {
-		if lv.Tags.Format == "project" {
-			opt := huh.NewOption(lv.Name, lv.Id)
-			if lv.Id == pt.Default {
-				opt = opt.Selected(true)
-			}
-			opts = append(opts, opt)
-		}
-	}
-	return opts
-}
-
-func generateForm(info *projectInfo, data *metadata) *huh.Form {
-
-	validate := func(str string) error {
-		str = strings.TrimSpace(str)
-		if strings.Contains(str, " ") {
-			return errors.New("should not contain space")
-		}
-		return nil
-	}
-
-	nameValidate := func(str string) error {
-		if err := validate(str); err != nil {
-			return err
-		}
-		str = strings.TrimSpace(str)
-		if fs, err := os.Stat(str); !os.IsNotExist(err) {
-			d := "file"
-			if fs.IsDir() {
-				d = "directory"
-			}
-			return fmt.Errorf("a %s named '%s' already exists", d, str)
-		}
-		return nil
-	}
-
-	return huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().
-				Title("Name of the project:").
-				Value(&info.name).
-				Placeholder(data.Name.Default).
-				Validate(nameValidate),
-
-			huh.NewInput().
-				Title("Group Id:").
-				Value(&info.group).
-				Placeholder(data.GroupId.Default).
-				Validate(validate),
-
-			huh.NewInput().
-				Title("Artifact Id:").
-				Value(&info.artifact).
-				Placeholder(data.ArtifactId.Default).
-				Validate(validate),
-
-			huh.NewInput().
-				Title("Write a short description:").
-				Value(&info.description).
-				Placeholder(data.Description.Default),
-		),
-
-		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title("Pick a language").
-				Options(getOpts(data.Language)...).
-				Value(&info.language),
-
-			huh.NewSelect[string]().
-				Title("Java version").
-				Options(getOpts(data.JavaVersion)...).
-				Value(&info.javaVersion),
-
-			huh.NewSelect[string]().
-				Title("Spring Boot version").
-				Options(getOpts(data.BootVersion)...).
-				Value(&info.bootVersion),
-
-			huh.NewSelect[string]().
-				Title("Type of the project").
-				Options(getProjectOpts(data.ProjectType)...).
-				Value(&info.projectType),
-
-			huh.NewSelect[string]().
-				Title("Packaging type").
-				Options(getOpts(data.Packaging)...).
-				Value(&info.packaging),
-		),
-
-		// Some basic dependencies have been added as the MultiSelect currently
-		// does not work well with long list of dependencies.
-		// Also, it lacks support of filtering.
-		huh.NewGroup(
-			huh.NewMultiSelect[string]().
-				Title("Add dependencies").
-				Options(
-					huh.NewOption("Spring Web", "web"),
-					huh.NewOption("Spring Reactive Web", "webflux"),
-					huh.NewOption("Spring Data JPA", "data-jpa"),
-					huh.NewOption("Spring Data JDBC", "data-jdbc"),
-					huh.NewOption("Spring Data Redis (Access+Driver)", "data-redis"),
-					huh.NewOption("Spring Data MongoDB", "data-mongodb"),
-					huh.NewOption("Spring Boot DevTools", "devtools"),
-					huh.NewOption("Lombok", "lombok"),
-					huh.NewOption("GraalVM Native Support", "native"),
-					huh.NewOption("Docker Compose Support", "docker-compose"),
-					huh.NewOption("Spring HATEOAS", "hateoas"),
-					huh.NewOption("MySQL Driver", "mysql"),
-					huh.NewOption("Oracle Driver", "oracle"),
-					huh.NewOption("PostgreSQL Driver", "postgresql"),
-					huh.NewOption("Thymeleaf", "thymeleaf"),
-					huh.NewOption("Mustache", "mustache"),
-					huh.NewOption("Spring Security", "security"),
-					huh.NewOption("OAuth2 Client", "oauth2-client"),
-				).
-				Filterable(true).
-				Value(&info.dependencies),
-		),
-	)
 }
 
 func getProjectZip(client *http.Client, info *projectInfo) (*http.Response, error) {
@@ -288,29 +150,6 @@ func unzip(body []byte, projectName string) error {
 	return nil
 }
 
-func generateProject(client *http.Client, info *projectInfo) error {
-	resp, err := getProjectZip(client, info)
-	if err != nil {
-		return err
-	}
-	ok := resp.StatusCode >= 200 && resp.StatusCode < 300
-	if !ok {
-		return errors.New("failed to generate project")
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	if err := unzip(body, info.name); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func main() {
 	client := &http.Client{}
 
@@ -319,33 +158,10 @@ func main() {
 		die(err)
 	}
 
-	info := &projectInfo{}
-	form := generateForm(info, data)
-	if err := form.Run(); err != nil {
+	program := tea.NewProgram(newModel(data, client))
+	if _, err := program.Run(); err != nil {
 		die(err)
 	}
-
-	info.name = strings.TrimSpace(info.name)
-	if len(info.name) == 0 {
-		info.name = data.Name.Default
-	}
-
-	var genProjectErr error
-	sp := spinner.New().
-		Title("Generating project...").
-		Action(func() {
-			genProjectErr = generateProject(client, info)
-		})
-
-	if err := sp.Run(); err != nil {
-		die(err)
-	}
-
-	if genProjectErr != nil {
-		die(genProjectErr)
-	}
-
-	fmt.Println("Project generated")
 }
 
 func die(err error) {
