@@ -4,7 +4,7 @@ Command line application to create a new Spring Boot project
 ## Usage
 
 ### Prerequisite
-The go version should be >=1.21
+The go version should be >=1.18
 
 ### Installation
 ```
