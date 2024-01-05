@@ -3,6 +3,8 @@ Command line application to create a new Spring Boot project
 
 ## Usage
 
+![start spring boot project from CLI](./screen.gif)
+
 ### Prerequisite
 The go version should be >=1.18
 
