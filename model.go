@@ -27,11 +27,12 @@ type errMsg struct{ err error }
 // model contains the program's state and implements
 // tea.Model.
 type model struct {
-	state    state
-	client   *http.Client
-	info     *projectInfo
-	data     *metadata
-	finalMsg string
+	state      state
+	client     *http.Client
+	info       *projectInfo
+	data       *metadata
+	finalMsg   string
+	isQuitting bool
 
 	form    *huh.Form
 	spinner spinner.Model
@@ -56,6 +57,7 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		if keyMsg.String() == "ctrl+c" {
+			m.isQuitting = true
 			return m, tea.Quit
 		}
 	}
@@ -97,6 +99,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
+	if m.isQuitting {
+		return ""
+	}
 	switch m.state {
 	case stateForm:
 		return m.form.View()
@@ -189,25 +194,25 @@ func newForm(info *projectInfo, data *metadata) *huh.Form {
 	return huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
-				Title("Name of the project:").
+				Title("Name of the project").
 				Value(&info.name).
 				Placeholder(data.Name.Default).
 				Validate(nameValidate),
 
 			huh.NewInput().
-				Title("Group Id:").
+				Title("Group Id").
 				Value(&info.group).
 				Placeholder(data.GroupId.Default).
 				Validate(validate),
 
 			huh.NewInput().
-				Title("Artifact Id:").
+				Title("Artifact Id").
 				Value(&info.artifact).
 				Placeholder(data.ArtifactId.Default).
 				Validate(validate),
 
 			huh.NewInput().
-				Title("Write a short description:").
+				Title("Write a short description").
 				Value(&info.description).
 				Placeholder(data.Description.Default),
 		),
@@ -272,7 +277,7 @@ func newForm(info *projectInfo, data *metadata) *huh.Form {
 }
 
 func newSpinner() spinner.Model {
-	style := lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color("#bd93f9"))
 	return spinner.New(
 		spinner.WithSpinner(spinner.Dot),
 		spinner.WithStyle(style),
