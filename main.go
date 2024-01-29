@@ -39,10 +39,20 @@ type metadata struct {
 	Packaging   selectType
 	ProjectType projectType `json:"type"`
 
-	GroupId     struct{ Default string }
-	ArtifactId  struct{ Default string }
-	Name        struct{ Default string }
-	Description struct{ Default string }
+	GroupId      struct{ Default string }
+	ArtifactId   struct{ Default string }
+	Name         struct{ Default string }
+	Description  struct{ Default string }
+	Dependencies multiSelectType
+}
+
+type multiSelectType struct {
+	Values []struct {
+		Values []struct {
+			Id   string
+			Name string
+		}
+	}
 }
 
 type selectType struct {
@@ -77,7 +87,9 @@ func getMetaData(client *http.Client) (*metadata, error) {
 
 	data := &metadata{}
 	dec := json.NewDecoder(resp.Body)
-	dec.Decode(data)
+	if err := dec.Decode(data); err != nil {
+		return nil, err
+	}
 	return data, nil
 }
 

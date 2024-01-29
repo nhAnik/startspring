@@ -191,6 +191,16 @@ func newForm(info *projectInfo, data *metadata) *huh.Form {
 		return opts
 	}
 
+	getDepsOpts := func(mt multiSelectType) []huh.Option[string] {
+		var opts []huh.Option[string]
+		for _, values := range mt.Values {
+			for _, dep := range values.Values {
+				opts = append(opts, huh.NewOption(dep.Name, dep.Id))
+			}
+		}
+		return opts
+	}
+
 	return huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
@@ -244,33 +254,12 @@ func newForm(info *projectInfo, data *metadata) *huh.Form {
 				Value(&info.packaging),
 		),
 
-		// Some basic dependencies have been added as the MultiSelect currently
-		// does not work well with long list of dependencies.
-		// Also, it lacks support of filtering.
 		huh.NewGroup(
 			huh.NewMultiSelect[string]().
 				Title("Add dependencies").
-				Options(
-					huh.NewOption("Spring Web", "web"),
-					huh.NewOption("Spring Reactive Web", "webflux"),
-					huh.NewOption("Spring Data JPA", "data-jpa"),
-					huh.NewOption("Spring Data JDBC", "data-jdbc"),
-					huh.NewOption("Spring Data Redis (Access+Driver)", "data-redis"),
-					huh.NewOption("Spring Data MongoDB", "data-mongodb"),
-					huh.NewOption("Spring Boot DevTools", "devtools"),
-					huh.NewOption("Lombok", "lombok"),
-					huh.NewOption("GraalVM Native Support", "native"),
-					huh.NewOption("Docker Compose Support", "docker-compose"),
-					huh.NewOption("Spring HATEOAS", "hateoas"),
-					huh.NewOption("MySQL Driver", "mysql"),
-					huh.NewOption("Oracle Driver", "oracle"),
-					huh.NewOption("PostgreSQL Driver", "postgresql"),
-					huh.NewOption("Thymeleaf", "thymeleaf"),
-					huh.NewOption("Mustache", "mustache"),
-					huh.NewOption("Spring Security", "security"),
-					huh.NewOption("OAuth2 Client", "oauth2-client"),
-				).
+				Options(getDepsOpts(data.Dependencies)...).
 				Filterable(true).
+				Height(22). // show 20 dependencies at once
 				Value(&info.dependencies),
 		),
 	).WithTheme(huh.ThemeDracula())
