@@ -191,15 +191,23 @@ func newForm(info *projectInfo, data *metadata) *huh.Form {
 		return opts
 	}
 
-	getDepsOpts := func(mt multiSelectType) []huh.Option[string] {
+	getDepsOpts := func(mt multiSelectType, bootVersion string) []huh.Option[string] {
 		var opts []huh.Option[string]
 		for _, values := range mt.Values {
 			for _, dep := range values.Values {
-				opts = append(opts, huh.NewOption(dep.Name, dep.Id))
+				if dep.VersionRange.contains(bootVersion) {
+					opts = append(opts, huh.NewOption(dep.Name, dep.Id))
+				}
 			}
 		}
 		return opts
 	}
+
+	multiSelect := huh.NewMultiSelect[string]().
+		Title("Add dependencies").
+		Filterable(true).
+		Height(22). // show 20 dependencies at once
+		Value(&info.dependencies)
 
 	return huh.NewForm(
 		huh.NewGroup(
@@ -241,7 +249,17 @@ func newForm(info *projectInfo, data *metadata) *huh.Form {
 			huh.NewSelect[string]().
 				Title("Spring Boot version").
 				Options(getOpts(data.BootVersion)...).
-				Value(&info.bootVersion),
+				Value(&info.bootVersion).
+				Validate(func(version string) error {
+					// Select dependencies based on spring boot version.
+					// Do not show those depencies which are not compatible
+					// to selected boot version.
+					// Though this is a validation function for this select field,
+					// it has been used to filter the dependencies as there is no
+					// method for *huh.MultiSelect to do it in a sane way.
+					multiSelect.Options(getDepsOpts(data.Dependencies, version)...)
+					return nil
+				}),
 
 			huh.NewSelect[string]().
 				Title("Type of the project").
@@ -254,14 +272,7 @@ func newForm(info *projectInfo, data *metadata) *huh.Form {
 				Value(&info.packaging),
 		),
 
-		huh.NewGroup(
-			huh.NewMultiSelect[string]().
-				Title("Add dependencies").
-				Options(getDepsOpts(data.Dependencies)...).
-				Filterable(true).
-				Height(22). // show 20 dependencies at once
-				Value(&info.dependencies),
-		),
+		huh.NewGroup(multiSelect),
 	).WithTheme(huh.ThemeDracula())
 }
 

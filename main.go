@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/hashicorp/go-version"
 )
 
 // projectInfo bundles all the information of
@@ -46,15 +47,6 @@ type metadata struct {
 	Dependencies multiSelectType
 }
 
-type multiSelectType struct {
-	Values []struct {
-		Values []struct {
-			Id   string
-			Name string
-		}
-	}
-}
-
 type selectType struct {
 	Default string
 	Values  []value
@@ -72,6 +64,96 @@ type projectType struct {
 type projectValue struct {
 	value
 	Tags struct{ Format string }
+}
+
+type multiSelectType struct {
+	Values []struct {
+		Values []struct {
+			Id           string
+			Name         string
+			VersionRange VersionRange
+		}
+	}
+}
+
+type VersionRange struct {
+	Lower, Upper               string
+	LowerInclude, UpperInclude bool
+}
+
+// contains checks if the version range contains the
+// given spring boot version.
+func (vr VersionRange) contains(v string) bool {
+	if vr.Lower == "" && vr.Upper == "" {
+		return true
+	}
+	bv, _ := version.NewSemver(v)
+	lowerOk, upperOk := true, true
+
+	if vr.Lower != "" {
+		lv, _ := version.NewSemver(vr.Lower)
+		if bv.LessThanOrEqual(lv) || vr.LowerInclude && bv.LessThan(lv) {
+			lowerOk = false
+		}
+	}
+
+	if vr.Upper != "" {
+		uv, _ := version.NewSemver(vr.Upper)
+		if bv.GreaterThanOrEqual(uv) || vr.UpperInclude && bv.GreaterThan(uv) {
+			upperOk = false
+		}
+	}
+	return lowerOk && upperOk
+}
+
+func (vr VersionRange) String() string {
+	if vr.Lower == "" {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteByte('>')
+	if vr.LowerInclude {
+		sb.WriteByte('=')
+	}
+	sb.WriteString(vr.Lower)
+
+	if vr.Upper != "" {
+		sb.WriteString(" and ")
+		sb.WriteByte('<')
+		if vr.UpperInclude {
+			sb.WriteByte('=')
+		}
+		sb.WriteString(vr.Upper)
+	}
+	return sb.String()
+}
+
+func (vr *VersionRange) UnmarshalJSON(b []byte) error {
+	b = b[1 : len(b)-1]
+
+	switch b[0] {
+	case '[', '(':
+		if b[0] == '[' {
+			vr.LowerInclude = true
+		}
+		for i := 0; i < len(b); i++ {
+			if b[i] == ',' {
+				vr.Lower = string(b[1:i])
+				vr.Upper = string(b[i+1 : len(b)-1])
+				break
+			}
+		}
+		if b[len(b)-1] == ']' {
+			vr.UpperInclude = true
+		}
+
+	default:
+		vr.Lower = string(b)
+		vr.LowerInclude = true
+	}
+
+	return nil
 }
 
 func getMetaData(client *http.Client) (*metadata, error) {

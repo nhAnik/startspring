@@ -7,6 +7,7 @@ require (
 	github.com/charmbracelet/bubbletea v0.25.0
 	github.com/charmbracelet/huh v0.3.0
 	github.com/charmbracelet/lipgloss v0.9.1
+	github.com/hashicorp/go-version v1.6.0
 )
 
 require (
